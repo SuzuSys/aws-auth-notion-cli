@@ -144,7 +144,8 @@ const ROOT_PAGE_IDS = "ROOT_PAGE_IDS";
       }).catch(inquirerErrorHandle());
       if (answer === REGISTER) {
         const pageID = await getNewRootPageId(token, rawPageIDs);
-
+        const pageIDs = [...rawPageIDs, pageID];
+        updateEnv(ROOT_PAGE_IDS, pageIDs.join(" "));
         return pageID;
       } else {
         return answer;
