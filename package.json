@@ -19,8 +19,9 @@
     "typescript": "^5.5.3"
   },
   "dependencies": {
+    "@inquirer/prompts": "^7.0.0",
     "@notionhq/client": "^2.2.15",
     "dotenv": "^16.4.5",
-    "enquirer": "^2.4.1"
+    "p-iteration": "^1.1.8"
   }
 }
