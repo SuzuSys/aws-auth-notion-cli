@@ -84,21 +84,21 @@ const ROOT_PAGE_IDS = "ROOT_PAGE_IDS";
         (str, pos) => rawPageIDs.indexOf(str) == pos
       );
       // validate page ids
-      type InvalidPageID = {
+      interface ChoiceInvalidPageID {
         description: string; // invalid factor
         name: string; // invalid page id
         value: number; // index of rawPageIDs
-      };
-      const invalidPageIDs: InvalidPageID[] = [];
-      type Page = {
+      }
+      const choiceInvalidPageIDs: ChoiceInvalidPageID[] = [];
+      interface ChoicePage {
         name: string; // page title
         value: string; // page id
-      };
-      const pages: (Page | Separator)[] = [];
+      }
+      const choicePages: (ChoicePage | Separator)[] = [];
       // pageIDs[].value is sorted (ascending order)
       const _ = await forEach(rawPageIDs, async (rawPageID, index) => {
         if (!pageIDRe.test(rawPageID)) {
-          invalidPageIDs.push({
+          choiceInvalidPageIDs.push({
             description: "Invalid format",
             name: rawPageID,
             value: index,
@@ -107,10 +107,10 @@ const ROOT_PAGE_IDS = "ROOT_PAGE_IDS";
         }
         const { valid, result } = await validatePageID(rawPageID, token);
         if (valid) {
-          pages.push({ name: result, value: rawPageID });
+          choicePages.push({ name: result, value: rawPageID });
           return true;
         } else {
-          invalidPageIDs.push({
+          choiceInvalidPageIDs.push({
             description: result,
             name: rawPageID,
             value: index,
@@ -118,11 +118,11 @@ const ROOT_PAGE_IDS = "ROOT_PAGE_IDS";
         }
         return true;
       });
-      if (invalidPageIDs.length !== 0) {
+      if (choiceInvalidPageIDs.length !== 0) {
         const invalidIndex = await checkbox({
           message:
             "The Following IDs are invalid. Select one to delete. Select: ↑↓, Check: Space, Submit: Enter",
-          choices: invalidPageIDs,
+          choices: choiceInvalidPageIDs,
         }).catch(inquirerErrorHandle());
         // remove id at invalidIndex from rawPageIDs
         invalidIndex.reverse().forEach((i) => rawPageIDs.splice(i, 1));
@@ -134,7 +134,7 @@ const ROOT_PAGE_IDS = "ROOT_PAGE_IDS";
         updateEnv(ROOT_PAGE_IDS, rawPageIDs.join(" "));
       }
 
-      if (pages.length === 0) {
+      if (choicePages.length === 0) {
         // register a new page id
         const pageID = await getNewRootPageId(token, []);
         updateEnv(ROOT_PAGE_IDS, pageID);
@@ -142,15 +142,15 @@ const ROOT_PAGE_IDS = "ROOT_PAGE_IDS";
       } else {
         // select from the existing page ids
         // or register a new page id
-        pages.push(new Separator());
-        const REGISTER = "register";
-        pages.push({
+        choicePages.push(new Separator());
+        const REGISTER = "REGISTER";
+        choicePages.push({
           name: "Register a new root page id",
           value: REGISTER,
         });
         const answer = await select({
           message: "Select a page to use. Select: ↑↓, Submit: Enter",
-          choices: pages,
+          choices: choicePages,
         }).catch(inquirerErrorHandle());
         if (answer === REGISTER) {
           const pageID = await getNewRootPageId(token, rawPageIDs);
@@ -169,20 +169,45 @@ const ROOT_PAGE_IDS = "ROOT_PAGE_IDS";
     }
   })();
   // get child databases
-  const { results }: ListBlockChildrenResponse =
-    await client.blocks.children.list({
-      block_id: pageID,
-    });
-  const childDbs: ChildDatabaseBlockObjectResponse[] = results.filter(
-    (e) => "type" in e && e.type === "child_database"
-  );
-  if (childDbs.length === 0) {
-    // make a services database
-  } else {
-    // select a services database
-    // or make one
-  }
-  console.log(childDbs);
+  const dbID: string = await (async (): Promise<string> => {
+    const { results }: ListBlockChildrenResponse =
+      await client.blocks.children.list({
+        block_id: pageID,
+      });
+    const childDbs: ChildDatabaseBlockObjectResponse[] = results.filter(
+      (e) => "type" in e && e.type === "child_database"
+    );
+    if (childDbs.length === 0) {
+      // make a root database
+      // ...
+      return "...";
+    } else {
+      // select a root database
+      // or make one
+      interface ChoiceDb {
+        name: string; // database title
+        value: string; // database id
+      }
+      const choiceDbs: (ChoiceDb | Separator)[] = childDbs.map((e) => ({
+        name: e.child_database.title,
+        value: e.id,
+      }));
+      choiceDbs.push(new Separator());
+      const CREATE = "CREATE";
+      choiceDbs.push({ name: "Create a new root database", value: CREATE });
+      const answer = await select({
+        message: "Select a root database to use.",
+        choices: choiceDbs,
+      }).catch(inquirerErrorHandle());
+      if (answer === CREATE) {
+        // ...
+        return "...";
+      } else {
+        return answer;
+      }
+    }
+  })();
+  console.log(dbID);
   process.exit(0);
   /*
   const response = await notion.databases.query({
