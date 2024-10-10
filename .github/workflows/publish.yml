@@ -1,7 +1,7 @@
 name: "publish package to npm"
 
 on:
-  push:
+  pull_request:
     branches:
       - "main"
 
