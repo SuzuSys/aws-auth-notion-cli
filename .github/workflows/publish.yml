@@ -20,7 +20,7 @@ jobs:
         run: |
           local=$(node -p "require('./package.json').version")
           npm=$(npm view @suzu-sys/aws-auth-notion-cli version)
-          if [ $local -eq $npm ]; then
+          if [ $local = $npm ]; then
             npm version patch
           fi
       - name: publish
