@@ -1,7 +1,7 @@
 name: "publish package to npm"
 
 on:
-  pull_request:
+  push:
     branches:
       - "main"
 
@@ -20,7 +20,8 @@ jobs:
         run: |
           local=$(node -p "require('./package.json').version")
           npm=$(npm view @suzu-sys/aws-auth-notion-cli version)
-          echo $local
+          if [ $local -eq $npm ]; then
+            npm version patch
       - name: publish
         run: npm publish --access public
         env:
