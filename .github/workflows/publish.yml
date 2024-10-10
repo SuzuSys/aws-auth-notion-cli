@@ -18,10 +18,14 @@ jobs:
           registry-url: https://registry.npmjs.org
       - name: get local version
         run: |
+          git config --local user.name "GitHub Actions"
+          git config --local user.email "actions@github.com"
           local=$(node -p "require('./package.json').version")
           npm=$(npm view @suzu-sys/aws-auth-notion-cli version)
           if [ $local = $npm ]; then
             npm version patch
+            next=git add package.json package-lock.json
+            git push origin $next
           fi
       - name: publish
         run: npm publish --access public
