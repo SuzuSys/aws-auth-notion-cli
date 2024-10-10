@@ -24,7 +24,7 @@ jobs:
           npm=$(npm view @suzu-sys/aws-auth-notion-cli version)
           if [ $local = $npm ]; then
             npm version patch
-            next=git add package.json package-lock.json
+            next=$(git add package.json package-lock.json)
             git push origin $next
           fi
       - name: publish
