@@ -45,7 +45,7 @@ export function formatPageID(rawPageID: string): {
     if (/^[A-Za-z0-9]{32}$/.test(rawPageID)) {
       preID = rawPageID;
     } else {
-      const matched = rawPageID.match(/[A-Za-z0-9]{32}(?=\?)/g);
+      const matched = rawPageID.match(/(?<=\/|\-)[A-Za-z0-9]{32}(?=\?|$)/g);
       if (matched) {
         preID = matched[0];
       } else {

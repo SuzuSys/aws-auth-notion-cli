@@ -23,6 +23,21 @@ describe("test formatPageID", () => {
       "https://www.notion.so/tut-cc/PPP-e26b4d8d1ad74275adcbb3dcfe9821bf?pvs=4",
       "e26b4d8d-1ad7-4275-adcb-b3dcfe9821bf",
     ],
+    [
+      "page url which no query params",
+      "https://www.notion.so/tut-cc/PPP-e26b4d8d1ad74275adcbb3dcfe9821bf",
+      "e26b4d8d-1ad7-4275-adcb-b3dcfe9821bf",
+    ],
+    [
+      "valid string 1",
+      "-e26b4d8d1ad74275adcbb3dcfe9821bf",
+      "e26b4d8d-1ad7-4275-adcb-b3dcfe9821bf",
+    ],
+    [
+      "valid string 2",
+      "/e26b4d8d1ad74275adcbb3dcfe9821bf",
+      "e26b4d8d-1ad7-4275-adcb-b3dcfe9821bf",
+    ],
   ])("Test valid values (%p): %p -> %p", (_, rawPageID, expected) => {
     expect(formatPageID(rawPageID)).toEqual({
       valid: true,
