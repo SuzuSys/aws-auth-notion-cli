@@ -1,6 +1,6 @@
 {
   "name": "@suzu-sys/aws-auth-notion-cli",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "This CLI application manages the AWS authorization database in Notion via Notion API.",
   "main": "dist/index.js",
   "bin": "./dist/index.js",
