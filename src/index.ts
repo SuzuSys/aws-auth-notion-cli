@@ -176,6 +176,12 @@ const ROOT_PAGE_IDS = "ROOT_PAGE_IDS";
   const childDbs: ChildDatabaseBlockObjectResponse[] = results.filter(
     (e) => "type" in e && e.type === "child_database"
   );
+  if (childDbs.length === 0) {
+    // make a services database
+  } else {
+    // select a services database
+    // or make one
+  }
   console.log(childDbs);
   process.exit(0);
   /*

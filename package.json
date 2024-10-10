@@ -5,7 +5,7 @@
   "main": "dist/index.js",
   "bin": "./dist/index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
+    "test": "jest",
     "start": "ts-node src/index.ts",
     "build": "npx tsc"
   },
@@ -14,7 +14,10 @@
   "repository": "https://github.com/SuzuSys/aws-auth-notion-cli",
   "homepage": "https://github.com/SuzuSys/aws-auth-notion-cli#readme",
   "devDependencies": {
+    "@jest/globals": "^29.7.0",
     "@types/node": "^20.14.11",
+    "jest": "^29.7.0",
+    "ts-jest": "^29.2.5",
     "ts-node": "^10.9.2",
     "typescript": "^5.5.3"
   },
