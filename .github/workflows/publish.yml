@@ -10,14 +10,18 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: checkout
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
       - name: node
-        uses: actions/setup-node@v2
+        uses: actions/setup-node@v3
         with:
           node-version: 16
           registry-url: https://registry.npmjs.org
+      - name: get local version
+        run: local=$(node -p "require('./package.json').version")
+      - name: get npm remote version
+        run: npm=$(npm view @suzu-sys/aws-auth-notion-cli version)
       - name: test
-        run: ls
+        run: echo $local
       - name: publish
         run: npm publish --access public
         env:
