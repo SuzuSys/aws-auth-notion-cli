@@ -1,5 +1,5 @@
 import { describe, expect, test } from "@jest/globals";
-import { formatPageID } from "../src/sanitize";
+import { formatPageID } from "../sanitize";
 
 describe("test formatPageID", () => {
   test.each([
