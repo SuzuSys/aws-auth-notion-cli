@@ -1,6 +1,10 @@
 #!/usr/bin/env node
 
 import { Client } from "@notionhq/client";
+import type {
+  ListBlockChildrenResponse,
+  ChildDatabaseBlockObjectResponse,
+} from "@notionhq/client/build/src/api-endpoints.d";
 import dotenv from "dotenv";
 import { updateEnv, deleteEnv } from "./setenv";
 import {
@@ -130,32 +134,49 @@ const ROOT_PAGE_IDS = "ROOT_PAGE_IDS";
         updateEnv(ROOT_PAGE_IDS, rawPageIDs.join(" "));
       }
 
-      // select from the existing page ids
-      // or register a new page id
-      pages.push(new Separator());
-      const REGISTER = "register";
-      pages.push({
-        name: "Register a new root page id",
-        value: REGISTER,
-      });
-      const answer = await select({
-        message: "Select a page to use. Select: ↑↓, Submit: Enter",
-        choices: pages,
-      }).catch(inquirerErrorHandle());
-      if (answer === REGISTER) {
-        const pageID = await getNewRootPageId(token, rawPageIDs);
-        const pageIDs = [...rawPageIDs, pageID];
-        updateEnv(ROOT_PAGE_IDS, pageIDs.join(" "));
+      if (pages.length === 0) {
+        // register a new page id
+        const pageID = await getNewRootPageId(token, []);
+        updateEnv(ROOT_PAGE_IDS, pageID);
         return pageID;
       } else {
-        return answer;
+        // select from the existing page ids
+        // or register a new page id
+        pages.push(new Separator());
+        const REGISTER = "register";
+        pages.push({
+          name: "Register a new root page id",
+          value: REGISTER,
+        });
+        const answer = await select({
+          message: "Select a page to use. Select: ↑↓, Submit: Enter",
+          choices: pages,
+        }).catch(inquirerErrorHandle());
+        if (answer === REGISTER) {
+          const pageID = await getNewRootPageId(token, rawPageIDs);
+          const pageIDs = [...rawPageIDs, pageID];
+          updateEnv(ROOT_PAGE_IDS, pageIDs.join(" "));
+          return pageID;
+        } else {
+          return answer;
+        }
       }
     } else {
+      // register a new page id
       const pageID = await getNewRootPageId(token, []);
       updateEnv(ROOT_PAGE_IDS, pageID);
       return pageID;
     }
   })();
+  // get child databases
+  const { results }: ListBlockChildrenResponse =
+    await client.blocks.children.list({
+      block_id: pageID,
+    });
+  const childDbs: ChildDatabaseBlockObjectResponse[] = results.filter(
+    (e) => "type" in e && e.type === "child_database"
+  );
+  console.log(childDbs);
   process.exit(0);
   /*
   const response = await notion.databases.query({
@@ -209,6 +230,10 @@ async function getNewRootPageId(token: string, registeredPageIDs: string[]) {
   return formattedPageID;
 }
 
+/**
+ * The CLI exits without an error message when the user presses Ctrl + C.
+ * @returns function.
+ */
 function inquirerErrorHandle() {
   return (error: { name: string }) => {
     if (error.name !== "ExitPromptError") console.log(error);
