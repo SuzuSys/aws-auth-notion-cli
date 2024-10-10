@@ -17,11 +17,10 @@ jobs:
           node-version: 16
           registry-url: https://registry.npmjs.org
       - name: get local version
-        run: local=$(node -p "require('./package.json').version")
-      - name: get npm remote version
-        run: npm=$(npm view @suzu-sys/aws-auth-notion-cli version)
-      - name: test
-        run: echo $local
+        run: |
+          local=$(node -p "require('./package.json').version")
+          npm=$(npm view @suzu-sys/aws-auth-notion-cli version)
+          echo $local
       - name: publish
         run: npm publish --access public
         env:
