@@ -1,8 +1,17 @@
 import { Client, isNotionClientError } from "@notionhq/client";
-import type { GetPageResponse } from "@notionhq/client/build/src/api-endpoints.d";
+import type {
+  GetDatabaseResponse,
+  GetPageResponse,
+} from "@notionhq/client/build/src/api-endpoints.d";
 
 export const pageIDRe =
   /^[A-Za-z0-9]{8}-(?:[A-Za-z0-9]{4}-){3}[A-Za-z0-9]{12}$/;
+
+export const PREFIX = "Prefix";
+export const SERVICE_NAME = "Service Name";
+export const APPROVE = "Approve";
+export const WRITE = "Write";
+export const READ = "Read";
 
 /**
  * Check the validity of a Notion token.
@@ -122,4 +131,25 @@ export async function sanitizePageID(
   } else {
     return { result: resValidate, pageID: "" };
   }
+}
+
+/**
+ * validate a root database
+ * @param db a root database
+ * @returns valid db as a root database
+ */
+export function validateRootDb(db: GetDatabaseResponse): boolean {
+  if (
+    PREFIX in db.properties &&
+    db.properties[PREFIX].type === "title" &&
+    SERVICE_NAME in db.properties &&
+    db.properties[SERVICE_NAME].type === "rich_text" &&
+    APPROVE in db.properties &&
+    "multi_select" in db.properties[APPROVE] &&
+    db.properties[APPROVE]["multi_select"].options.every(
+      ({ name }) => name === WRITE || name === READ
+    )
+  )
+    return true;
+  return false;
 }

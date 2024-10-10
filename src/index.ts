@@ -12,8 +12,12 @@ import {
   validatePageID,
   sanitizePageID,
   pageIDRe,
+  validateRootDb,
+  PREFIX,
+  SERVICE_NAME,
+  APPROVE,
 } from "./sanitize";
-import { forEach } from "p-iteration";
+import { forEach, filter } from "p-iteration";
 import { input, confirm, checkbox, select, Separator } from "@inquirer/prompts";
 
 dotenv.config();
@@ -169,7 +173,7 @@ const ROOT_PAGE_IDS = "ROOT_PAGE_IDS";
     }
   })();
   // get child databases
-  const dbID: string = await (async (): Promise<string> => {
+  const rootDbID: string = await (async (): Promise<string> => {
     const { results }: ListBlockChildrenResponse =
       await client.blocks.children.list({
         block_id: pageID,
@@ -177,7 +181,13 @@ const ROOT_PAGE_IDS = "ROOT_PAGE_IDS";
     const childDbs: ChildDatabaseBlockObjectResponse[] = results.filter(
       (e) => "type" in e && e.type === "child_database"
     );
-    if (childDbs.length === 0) {
+    const childRootDbs = await filter(childDbs, async (e) => {
+      const response = await client.databases.retrieve({
+        database_id: e.id,
+      });
+      return validateRootDb(response);
+    });
+    if (childRootDbs.length === 0) {
       // make a root database
       // ...
       return "...";
@@ -188,7 +198,7 @@ const ROOT_PAGE_IDS = "ROOT_PAGE_IDS";
         name: string; // database title
         value: string; // database id
       }
-      const choiceDbs: (ChoiceDb | Separator)[] = childDbs.map((e) => ({
+      const choiceDbs: (ChoiceDb | Separator)[] = childRootDbs.map((e) => ({
         name: e.child_database.title,
         value: e.id,
       }));
@@ -207,25 +217,23 @@ const ROOT_PAGE_IDS = "ROOT_PAGE_IDS";
       }
     }
   })();
-  console.log(dbID);
-  process.exit(0);
-  /*
-  const response = await notion.databases.query({
-    database_id: process.env.PAGE_IDS as string,
+  const rootDb = await client.databases.retrieve({
+    database_id: rootDbID,
   });
-
-  let results: Array<PageObjectResponse>;
-
-  if (response.results[0].object === "page" && "url" in response.results[0]) {
-    results = response.results as Array<PageObjectResponse>;
-  } else {
-    throw Error("Cannot convert results to Array<PageObjectResponse>");
+  const filteredRootDb = await client.databases.query({
+    database_id: rootDbID,
+    filter_properties: [
+      rootDb.properties[PREFIX].id,
+      rootDb.properties[SERVICE_NAME].id,
+      rootDb.properties[APPROVE].id,
+    ],
+    page_size: 1,
+  });
+  if ("properties" in filteredRootDb.results[0]) {
+    console.log(filteredRootDb.results[0].properties);
   }
 
-  const properties = results.map((e) => e.properties);
-
-  console.log(properties);
-  */
+  process.exit(0);
 })()
   .then(() => process.exit(0))
   .catch((err) => {
