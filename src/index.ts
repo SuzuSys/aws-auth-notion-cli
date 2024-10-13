@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 
+import { red, green } from "yoctocolors-cjs";
 import { Client } from "@notionhq/client";
 import type {
   ListBlockChildrenResponse,
@@ -16,7 +17,10 @@ import {
   PREFIX,
   SERVICE_NAME,
   APPROVE,
+  WRITE,
+  READ,
 } from "./sanitize";
+import { fetchIamDataset, getServiceNames } from "./datafetch";
 import { forEach, filter } from "p-iteration";
 import { input, confirm, checkbox, select, Separator } from "@inquirer/prompts";
 
@@ -217,22 +221,104 @@ const ROOT_PAGE_IDS = "ROOT_PAGE_IDS";
       }
     }
   })();
+  // get root db
   const rootDb = await client.databases.retrieve({
     database_id: rootDbID,
   });
-  const filteredRootDb = await client.databases.query({
-    database_id: rootDbID,
-    filter_properties: [
-      rootDb.properties[PREFIX].id,
-      rootDb.properties[SERVICE_NAME].id,
-      rootDb.properties[APPROVE].id,
-    ],
-    page_size: 1,
-  });
-  if ("properties" in filteredRootDb.results[0]) {
-    console.log(filteredRootDb.results[0].properties);
+  // query database
+  async function* queryIterator() {
+    let next_cursor = undefined;
+    while (true) {
+      const filteredRootDb = await client.databases.query({
+        database_id: rootDbID,
+        filter_properties: [
+          rootDb.properties[PREFIX].id,
+          rootDb.properties[SERVICE_NAME].id,
+          rootDb.properties[APPROVE].id,
+        ],
+        page_size: 100,
+        start_cursor: next_cursor,
+      });
+      yield filteredRootDb.results;
+      if (!filteredRootDb.has_more) break;
+      next_cursor = filteredRootDb.next_cursor
+        ? filteredRootDb.next_cursor
+        : undefined; // convert null to undefined
+    }
   }
+  const serviceNameMap = new Map<string, string>(); // prefix: service_name
+  const approveMap = new Map<string, { read: boolean; write: boolean }>(); // prefix: approve
+  for await (const es of queryIterator()) {
+    es.forEach((e) => {
+      if (!("properties" in e)) {
+        console.warn("Unexpected object detected.", e);
+        return;
+      }
+      if (
+        "title" in e.properties[PREFIX] &&
+        e.properties[PREFIX].title &&
+        Array.isArray(e.properties[PREFIX].title)
+      ) {
+        const prefix = e.properties[PREFIX].title[0].plain_text;
+        let serviceName;
+        if (
+          "rich_text" in e.properties[SERVICE_NAME] &&
+          Array.isArray(e.properties[SERVICE_NAME].rich_text)
+        ) {
+          serviceName = e.properties[SERVICE_NAME].rich_text[0].plain_text;
+        } else {
+          console.error("Unexpected object detected.", e);
+          return;
+        }
+        let approve = { read: false, write: false };
+        if (
+          "multi_select" in e.properties[APPROVE] &&
+          "options" in e.properties[APPROVE].multi_select
+        ) {
+          for (const s of e.properties[APPROVE].multi_select.options) {
+            approve.read = s.name === READ;
+            approve.write = s.name === WRITE;
+          }
+        }
+        serviceNameMap.set(prefix, serviceName);
+        approveMap.set(prefix, approve);
+      } else {
+        console.error("Unexpected object detected.", e);
+        return;
+      }
+    });
+  }
+  // fetch data from iamdataset
+  await fetchIamDataset();
+  const latestServiceNameMap = getServiceNames();
+  // get difference set
+  console.log("----------------------------------");
+  console.log("UPDATE DETAILS");
+  console.log("----------------------------------");
+  const minusPrefix: string[] = [];
+  serviceNameMap.forEach((service_name, prefix) => {
+    const latest_service = latestServiceNameMap.get(prefix);
+    if (latest_service) {
+      if (service_name !== latest_service) {
+        console.log(
+          `${prefix}: ${red(service_name)} => ${green(latest_service)}`
+        );
+      }
+      latestServiceNameMap.delete(prefix);
+    } else {
+      minusPrefix.push(prefix);
+    }
+  });
+  minusPrefix.forEach((e) => {
+    console.log(`${red("-")} ${red(e)}`);
+  });
+  latestServiceNameMap.forEach((_, prefix) => {
+    console.log(`${green("+")} ${green(prefix)}`);
+  });
+  console.log("----------------------------------");
 
+  // console.log(serviceNameMap);
+  // console.log(approveMap);
   process.exit(0);
 })()
   .then(() => process.exit(0))
@@ -251,7 +337,7 @@ async function getNewRootPageId(token: string, registeredPageIDs: string[]) {
   let formattedPageID = "";
   await input({
     message:
-      "What is a new root page id or url? (The entered url will be automatically converted to an id.)\n",
+      "What is a new root page id or url? (The entered url will be automatically converted to an id.)",
     required: true,
     validate: async (rawPageID): Promise<string | boolean> => {
       const { result, pageID } = await sanitizePageID(rawPageID, token);

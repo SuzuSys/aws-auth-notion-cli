@@ -140,11 +140,8 @@ export async function sanitizePageID(
  */
 export function validateRootDb(db: GetDatabaseResponse): boolean {
   if (
-    PREFIX in db.properties &&
     db.properties[PREFIX].type === "title" &&
-    SERVICE_NAME in db.properties &&
     db.properties[SERVICE_NAME].type === "rich_text" &&
-    APPROVE in db.properties &&
     "multi_select" in db.properties[APPROVE] &&
     db.properties[APPROVE]["multi_select"].options.every(
       ({ name }) => name === WRITE || name === READ

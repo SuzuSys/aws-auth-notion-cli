@@ -25,6 +25,7 @@
     "@inquirer/prompts": "^7.0.0",
     "@notionhq/client": "^2.2.15",
     "dotenv": "^16.4.5",
-    "p-iteration": "^1.1.8"
+    "p-iteration": "^1.1.8",
+    "yoctocolors-cjs": "^2.1.2"
   }
 }
