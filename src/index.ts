@@ -1,7 +1,11 @@
 #!/usr/bin/env node
 
 import { red, green } from "yoctocolors-cjs";
-import { Client } from "@notionhq/client";
+import {
+  Client,
+  collectPaginatedAPI,
+  isFullPageOrDatabase,
+} from "@notionhq/client";
 import type {
   ListBlockChildrenResponse,
   ChildDatabaseBlockObjectResponse,
@@ -225,69 +229,55 @@ const ROOT_PAGE_IDS = "ROOT_PAGE_IDS";
   const rootDb = await client.databases.retrieve({
     database_id: rootDbID,
   });
-  // query database
-  async function* queryIterator() {
-    let next_cursor = undefined;
-    while (true) {
-      const filteredRootDb = await client.databases.query({
-        database_id: rootDbID,
-        filter_properties: [
-          rootDb.properties[PREFIX].id,
-          rootDb.properties[SERVICE_NAME].id,
-          rootDb.properties[APPROVE].id,
-        ],
-        page_size: 100,
-        start_cursor: next_cursor,
-      });
-      yield filteredRootDb.results;
-      if (!filteredRootDb.has_more) break;
-      next_cursor = filteredRootDb.next_cursor
-        ? filteredRootDb.next_cursor
-        : undefined; // convert null to undefined
-    }
-  }
   const serviceNameMap = new Map<string, string>(); // prefix: service_name
   const approveMap = new Map<string, { read: boolean; write: boolean }>(); // prefix: approve
-  for await (const es of queryIterator()) {
-    es.forEach((e) => {
-      if (!("properties" in e)) {
-        console.warn("Unexpected object detected.", e);
-        return;
-      }
+  // query database
+  const queried = await collectPaginatedAPI(client.databases.query, {
+    database_id: rootDbID,
+    filter_properties: [
+      rootDb.properties[PREFIX].id,
+      rootDb.properties[SERVICE_NAME].id,
+      rootDb.properties[APPROVE].id,
+    ],
+  });
+  queried.forEach((e) => {
+    if (!isFullPageOrDatabase(e)) {
+      console.warn("Unexpected object detected.", e);
+      return;
+    }
+    if (
+      "title" in e.properties[PREFIX] &&
+      e.properties[PREFIX].title &&
+      Array.isArray(e.properties[PREFIX].title)
+    ) {
+      const prefix = e.properties[PREFIX].title[0].plain_text;
+      let serviceName;
       if (
-        "title" in e.properties[PREFIX] &&
-        e.properties[PREFIX].title &&
-        Array.isArray(e.properties[PREFIX].title)
+        "rich_text" in e.properties[SERVICE_NAME] &&
+        Array.isArray(e.properties[SERVICE_NAME].rich_text)
       ) {
-        const prefix = e.properties[PREFIX].title[0].plain_text;
-        let serviceName;
-        if (
-          "rich_text" in e.properties[SERVICE_NAME] &&
-          Array.isArray(e.properties[SERVICE_NAME].rich_text)
-        ) {
-          serviceName = e.properties[SERVICE_NAME].rich_text[0].plain_text;
-        } else {
-          console.error("Unexpected object detected.", e);
-          return;
-        }
-        let approve = { read: false, write: false };
-        if (
-          "multi_select" in e.properties[APPROVE] &&
-          "options" in e.properties[APPROVE].multi_select
-        ) {
-          for (const s of e.properties[APPROVE].multi_select.options) {
-            approve.read = s.name === READ;
-            approve.write = s.name === WRITE;
-          }
-        }
-        serviceNameMap.set(prefix, serviceName);
-        approveMap.set(prefix, approve);
+        serviceName = e.properties[SERVICE_NAME].rich_text[0].plain_text;
       } else {
         console.error("Unexpected object detected.", e);
         return;
       }
-    });
-  }
+      let approve = { read: false, write: false };
+      if (
+        "multi_select" in e.properties[APPROVE] &&
+        "options" in e.properties[APPROVE].multi_select
+      ) {
+        for (const s of e.properties[APPROVE].multi_select.options) {
+          approve.read = s.name === READ;
+          approve.write = s.name === WRITE;
+        }
+      }
+      serviceNameMap.set(prefix, serviceName);
+      approveMap.set(prefix, approve);
+    } else {
+      console.error("Unexpected object detected.", e);
+      return;
+    }
+  });
   // fetch data from iamdataset
   await fetchIamDataset();
   const latestServiceNameMap = getServiceNames();
@@ -316,6 +306,12 @@ const ROOT_PAGE_IDS = "ROOT_PAGE_IDS";
     console.log(`${green("+")} ${green(prefix)}`);
   });
   console.log("----------------------------------");
+  process.exit(0);
+  const confirmUpdate = await select({
+    message: "Do you want to update to fix the difference?",
+    choices: [],
+  }).catch(inquirerErrorHandle()); // 部分的に治すというオプションも入れる。
+  if (!confirmUpdate) process.exit(0);
 
   // console.log(serviceNameMap);
   // console.log(approveMap);
