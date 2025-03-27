@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 
+import { inquirerErrorHandle } from "./errorHundle";
 import { red, green } from "yoctocolors-cjs";
 import {
   Client,
@@ -349,15 +350,4 @@ async function getNewRootPageId(token: string, registeredPageIDs: string[]) {
   }).catch(inquirerErrorHandle());
   if (formattedPageID === "") throw Error("Unexpected error occurred.");
   return formattedPageID;
-}
-
-/**
- * The CLI exits without an error message when the user presses Ctrl + C.
- * @returns function.
- */
-function inquirerErrorHandle() {
-  return (error: { name: string }) => {
-    if (error.name !== "ExitPromptError") console.log(error);
-    process.exit(0);
-  };
 }
