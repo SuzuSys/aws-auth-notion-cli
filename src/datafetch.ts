@@ -6,8 +6,12 @@ let DATA: Service[];
  * fetch DATA from Iam Dataset
  */
 export async function fetchIamDataset() {
-  const response = await fetch(IAM_DATASET);
-  DATA = await response.json();
+  if (DATA) {
+    console.warn("Multiple calls to fetchIamDataset() detected.");
+  } else {
+    const response = await fetch(IAM_DATASET);
+    DATA = await response.json();
+  }
 }
 
 /**
