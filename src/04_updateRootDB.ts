@@ -20,7 +20,7 @@ import { forEach } from "p-iteration";
  * @param rootDbID
  * @param rootDb
  * @param serviceNameInIamMap
- * @returns idMap and approveMap
+ * @returns idMap and approveMap which contain the intersection set of IamDataset and Notion database
  */
 export default async function updateRootDB(
   client: Client,
@@ -165,7 +165,7 @@ export default async function updateRootDB(
     await forEach(addPrefixes, async (prefix) => {
       const serviceName = serviceNameInIamMap.get(prefix);
       if (serviceName) {
-        await client.pages.create({
+        const createdPage = await client.pages.create({
           parent: {
             database_id: rootDbID,
           },
@@ -180,6 +180,8 @@ export default async function updateRootDB(
             },
           },
         });
+        idMap.set(prefix, createdPage.id);
+        approveMap.set(prefix, { read: false, write: false });
       } else {
         // impossible
       }
@@ -189,6 +191,7 @@ export default async function updateRootDB(
     idMap.delete(prefix.value);
     approveMap.delete(prefix.value);
   });
+
   return {
     idMap,
     approveMap,
