@@ -1,7 +1,10 @@
 import { Client, isNotionClientError } from "@notionhq/client";
 import type {
+  CreateDatabaseParameters,
+  CreatePageParameters,
   GetDatabaseResponse,
   GetPageResponse,
+  TextRichTextItemResponse,
 } from "@notionhq/client/build/src/api-endpoints.d";
 
 export const pageIDRe =
@@ -149,4 +152,102 @@ export function validateRootDb(db: GetDatabaseResponse): boolean {
   )
     return true;
   return false;
+}
+
+/**
+ * Create and return a new CreateDatabaseParameters object
+ * required for creating a root database
+ * @param pageID parent page id
+ * @param dbName
+ * @returns CreateDatabaseParameters object
+ */
+export function createPlainDbParameter(
+  pageID: string,
+  dbName: string
+): CreateDatabaseParameters {
+  return {
+    parent: {
+      page_id: pageID,
+    },
+    title: createPlainRichTextItem(dbName),
+    properties: {
+      [PREFIX]: {
+        title: {},
+      },
+      [SERVICE_NAME]: {
+        rich_text: {},
+      },
+      [APPROVE]: {
+        multi_select: {
+          options: [
+            {
+              name: READ,
+              color: "yellow",
+            },
+            {
+              name: WRITE,
+              color: "green",
+            },
+          ],
+        },
+      },
+    },
+  };
+}
+
+/**
+ * Create and return a new CreatePageParameters object
+ * required for inserting a record in a root database
+ * @param rootDbId
+ * @returns CreatePageParameters object
+ */
+export function createPlainRecordParameter(
+  rootDbId: string,
+  prefix: string,
+  serviceName: string
+): CreatePageParameters {
+  return {
+    parent: {
+      database_id: rootDbId,
+    },
+    properties: {
+      [PREFIX]: {
+        type: "title",
+        title: createPlainRichTextItem(prefix),
+      },
+      [SERVICE_NAME]: {
+        type: "rich_text",
+        rich_text: createPlainRichTextItem(serviceName),
+      },
+    },
+  };
+}
+
+/**
+ * Create a new TextRichTextItem object.
+ * @param text plane text
+ * @returns a new TextRichTextItem object
+ */
+export function createPlainRichTextItem(
+  text: string
+): TextRichTextItemResponse[] {
+  return [
+    {
+      type: "text",
+      text: {
+        content: text,
+        link: null,
+      },
+      annotations: {
+        bold: false,
+        italic: false,
+        strikethrough: false,
+        underline: false,
+        code: false,
+        color: "default",
+      },
+      plain_text: text,
+      href: null,
+    },
+  ];
 }

@@ -7,7 +7,15 @@ import {
   GetDatabaseResponse,
   TextRichTextItemResponse,
 } from "@notionhq/client/build/src/api-endpoints";
-import { APPROVE, PREFIX, READ, SERVICE_NAME, WRITE } from "./sanitize";
+import {
+  APPROVE,
+  createPlainRecordParameter,
+  createPlainRichTextItem,
+  PREFIX,
+  READ,
+  SERVICE_NAME,
+  WRITE,
+} from "./sanitize";
 import { getServiceNames } from "./datafetch";
 import { green, red } from "yoctocolors-cjs";
 import { checkbox } from "@inquirer/prompts";
@@ -165,21 +173,9 @@ export default async function updateRootDB(
     await forEach(addPrefixes, async (prefix) => {
       const serviceName = serviceNameInIamMap.get(prefix);
       if (serviceName) {
-        const createdPage = await client.pages.create({
-          parent: {
-            database_id: rootDbID,
-          },
-          properties: {
-            [PREFIX]: {
-              type: "title",
-              title: createPlainRichTextItem(prefix),
-            },
-            [SERVICE_NAME]: {
-              type: "rich_text",
-              rich_text: createPlainRichTextItem(serviceName),
-            },
-          },
-        });
+        const createdPage = await client.pages.create(
+          createPlainRecordParameter(rootDbID, prefix, serviceName)
+        );
         idMap.set(prefix, createdPage.id);
         approveMap.set(prefix, { read: false, write: false });
       } else {
@@ -196,31 +192,4 @@ export default async function updateRootDB(
     idMap,
     approveMap,
   };
-}
-
-/**
- * Create a new TextRichTextItem object.
- * @param text plane text
- * @returns a new TextRichTextItem object
- */
-function createPlainRichTextItem(text: string): TextRichTextItemResponse[] {
-  return [
-    {
-      type: "text",
-      text: {
-        content: text,
-        link: null,
-      },
-      annotations: {
-        bold: false,
-        italic: false,
-        strikethrough: false,
-        underline: false,
-        code: false,
-        color: "default",
-      },
-      plain_text: text,
-      href: null,
-    },
-  ];
 }

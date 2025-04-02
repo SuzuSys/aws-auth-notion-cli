@@ -14,7 +14,7 @@ dotenv.config();
   const { token, client } = await getNotionClient();
   // get page id
   const pageID: string = await getPageID(token);
-  // get child databases
+  // get child databases and select a root database
   const rootDbID: string = await getRootDB(client, pageID);
   // get root db
   const rootDb = await client.databases.retrieve({

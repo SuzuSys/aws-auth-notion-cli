@@ -1,13 +1,20 @@
-import { Client } from "@notionhq/client";
+import { Client, APIResponseError } from "@notionhq/client";
 import {
   ChildDatabaseBlockObjectResponse,
   ListBlockChildrenResponse,
+  CreateDatabaseResponse,
 } from "@notionhq/client/build/src/api-endpoints";
 import { filter } from "p-iteration";
-import { validateRootDb } from "./sanitize";
-import { select, Separator } from "@inquirer/prompts";
+import { createPlainDbParameter, validateRootDb } from "./sanitize";
+import { input, select, Separator } from "@inquirer/prompts";
 import { inquirerErrorHandle } from "./errorHundle";
 
+/**
+ * get child databases and select a root database
+ * @param client
+ * @param pageID
+ * @returns root database id
+ */
 export default async function getRootDB(
   client: Client,
   pageID: string
@@ -27,8 +34,8 @@ export default async function getRootDB(
   });
   if (childRootDbs.length === 0) {
     // make a root database
-    // ...
-    return "...";
+    const rootDbID = await makeRootDb(client, pageID);
+    return rootDbID;
   } else {
     // select a root database
     // or make one
@@ -47,11 +54,43 @@ export default async function getRootDB(
       message: "Select a root database to use.",
       choices: choiceDbs,
     }).catch(inquirerErrorHandle());
+
     if (answer === CREATE) {
-      // ...
-      return "...";
+      const rootDbID = await makeRootDb(client, pageID);
+      return rootDbID;
     } else {
       return answer;
     }
   }
+}
+
+/**
+ * create root database and return database id
+ * @param client
+ * @param pageID
+ * @returns root database id
+ */
+async function makeRootDb(client: Client, pageID: string): Promise<string> {
+  let res: CreateDatabaseResponse | undefined;
+  await input({
+    message: "Enter a root database name.",
+    required: true,
+    validate: async (rawDatabaseName): Promise<string | boolean> => {
+      const newDb = createPlainDbParameter(pageID, rawDatabaseName);
+      try {
+        res = await client.databases.create(newDb);
+        return true;
+      } catch (e) {
+        if (e instanceof APIResponseError) {
+          return e.message;
+        } else {
+          return "Unexpected error.";
+        }
+      }
+    },
+  }).catch(inquirerErrorHandle());
+  if (!res) {
+    throw Error("Unexpected error occurred.");
+  }
+  return res.id;
 }
