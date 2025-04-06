@@ -102,7 +102,7 @@ async function makeRootDb(
   const policyName = await select({
     message: "Select a root database policy.",
     choices: policiesChoice,
-  });
+  }).catch(inquirerErrorHandle());
   const policy = policiesMap[policyName];
   let res: CreateDatabaseResponse | undefined;
   await input({

@@ -4,6 +4,7 @@ import type {
   CreatePageParameters,
   GetDatabaseResponse,
   GetPageResponse,
+  RichTextItemResponse,
 } from "@notionhq/client/build/src/api-endpoints.d";
 import { policies, policiesMap, Policy, policyUnion } from "./policies";
 
@@ -154,7 +155,7 @@ export async function sanitizePageID(
 }
 
 const dbPolicyDescRe = new RegExp(
-  `(?<=policy: )(${policies.join("|")})(?=\\W)`,
+  `(?<=policy: )(${policies.join("|")})(?!\\w)`,
   "m"
 );
 
@@ -165,9 +166,11 @@ const dbPolicyDescRe = new RegExp(
  */
 export function getPolicy(db: GetDatabaseResponse): Policy | undefined {
   if ("description" in db) {
-    const res = dbPolicyDescRe.exec(db.description[0].plain_text)?.[0];
-    if (res) {
-      return policiesMap[res as policyUnion];
+    for (const item of db.description) {
+      const res = dbPolicyDescRe.exec(item.plain_text)?.[0];
+      if (res) {
+        return policiesMap[res as policyUnion];
+      }
     }
   }
 }
