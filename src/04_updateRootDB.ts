@@ -1,26 +1,32 @@
 import {
   Client,
   collectPaginatedAPI,
+  isFullDatabase,
+  isFullPage,
   isFullPageOrDatabase,
 } from "@notionhq/client";
 import {
+  DatabaseObjectResponse,
   GetDatabaseResponse,
-  TextRichTextItemResponse,
+  PageObjectResponse,
+  PartialDatabaseObjectResponse,
+  PartialPageObjectResponse,
+  QueryDatabaseParameters,
 } from "@notionhq/client/build/src/api-endpoints";
 import {
-  APPROVE,
   createPlainRecordParameter,
   createPlainRichTextItem,
+  Prefix,
   PREFIX,
-  READ,
   SERVICE_NAME,
-  WRITE,
+  ServiceName,
 } from "./sanitize";
 import { getServiceNames } from "./datafetch";
 import { green, red } from "yoctocolors-cjs";
 import { checkbox } from "@inquirer/prompts";
 import { inquirerErrorHandle } from "./errorHundle";
 import { forEach } from "p-iteration";
+import { Policy } from "./policies";
 
 /**
  * get info about idMap and approveMap, and update root database.
@@ -28,40 +34,38 @@ import { forEach } from "p-iteration";
  * @param rootDbID
  * @param rootDb
  * @param serviceNameInIamMap
- * @returns idMap and approveMap which contain the intersection set of IamDataset and Notion database
+ * @returns idMap which contain the intersection set of IamDataset and Notion database
  */
 export default async function updateRootDB(
   client: Client,
   rootDbID: string,
   rootDb: GetDatabaseResponse,
-  serviceNameInIamMap: Map<string, string>
-): Promise<{
-  idMap: Map<string, string>;
-  approveMap: Map<string, { read: boolean; write: boolean }>;
-}> {
-  const idMap = new Map<string, string>(); // prefix: id
-  const approveMap = new Map<string, { read: boolean; write: boolean }>(); // prefix: approve
-  const serviceNameInNotionMap = new Map<string, string>(); // prefix: service_name
+  serviceNameInIamMap: Map<Prefix, ServiceName>,
+  policy: Policy
+): Promise<Map<Prefix, string>> {
+  const idMap = new Map<Prefix, string>(); // prefix: id
+  const serviceNameInNotionMap = new Map<Prefix, ServiceName>(); // prefix: service_name
   // query database
   const queried = await collectPaginatedAPI(client.databases.query, {
     database_id: rootDbID,
     filter_properties: [
       rootDb.properties[PREFIX].id,
       rootDb.properties[SERVICE_NAME].id,
-      rootDb.properties[APPROVE].id,
+      ...Object.keys(policy.rootDbProp).map(
+        (prop) => rootDb.properties[prop].id
+      ),
     ],
   });
   queried.forEach((e) => {
-    if (!isFullPageOrDatabase(e)) {
+    if (!isFullDatabase(e)) {
       console.warn("Unexpected object detected.", e);
       return;
     }
     if (
       "title" in e.properties[PREFIX] &&
-      e.properties[PREFIX].title &&
       Array.isArray(e.properties[PREFIX].title)
     ) {
-      const prefix = e.properties[PREFIX].title[0].plain_text;
+      const prefix: Prefix = e.properties[PREFIX].title[0].plain_text;
       let serviceName;
       if (
         "rich_text" in e.properties[SERVICE_NAME] &&
@@ -72,19 +76,9 @@ export default async function updateRootDB(
         console.error("Unexpected object detected.", e);
         return;
       }
-      const approve = { read: false, write: false };
-      if (
-        "multi_select" in e.properties[APPROVE] &&
-        "options" in e.properties[APPROVE].multi_select
-      ) {
-        for (const s of e.properties[APPROVE].multi_select.options) {
-          approve.read = s.name === READ;
-          approve.write = s.name === WRITE;
-        }
-      }
       idMap.set(prefix, e.id);
       serviceNameInNotionMap.set(prefix, serviceName);
-      approveMap.set(prefix, approve);
+      policy.extractProp(prefix, e);
     } else {
       console.error("Unexpected object detected.", e);
       return;
@@ -94,7 +88,7 @@ export default async function updateRootDB(
   // get difference set
   interface Choice {
     name: string;
-    value: string; // prefix
+    value: Prefix; // prefix
   }
   const nameChangePrefixes: Choice[] = [];
   const minusPrefixes: Choice[] = [];
@@ -174,10 +168,10 @@ export default async function updateRootDB(
       const serviceName = serviceNameInIamMap.get(prefix);
       if (serviceName) {
         const createdPage = await client.pages.create(
-          createPlainRecordParameter(rootDbID, prefix, serviceName)
+          createPlainRecordParameter(rootDbID, prefix, serviceName, policy)
         );
         idMap.set(prefix, createdPage.id);
-        approveMap.set(prefix, { read: false, write: false });
+        policy.addPlainRecordCallback(prefix);
       } else {
         // impossible
       }
@@ -185,11 +179,8 @@ export default async function updateRootDB(
   }
   minusPrefixes.forEach((prefix) => {
     idMap.delete(prefix.value);
-    approveMap.delete(prefix.value);
+    policy.deleteRecordCallback(prefix.value);
   });
 
-  return {
-    idMap,
-    approveMap,
-  };
+  return idMap;
 }

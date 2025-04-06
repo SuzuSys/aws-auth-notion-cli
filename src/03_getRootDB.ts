@@ -4,10 +4,11 @@ import {
   ListBlockChildrenResponse,
   CreateDatabaseResponse,
 } from "@notionhq/client/build/src/api-endpoints";
-import { filter } from "p-iteration";
+import { forEach } from "p-iteration";
 import { createPlainDbParameter, validateRootDb } from "./sanitize";
 import { input, select, Separator } from "@inquirer/prompts";
 import { inquirerErrorHandle } from "./errorHundle";
+import { policiesChoice, policiesMap, Policy } from "./policies";
 
 /**
  * get child databases and select a root database
@@ -18,7 +19,10 @@ import { inquirerErrorHandle } from "./errorHundle";
 export default async function getRootDB(
   client: Client,
   pageID: string
-): Promise<string> {
+): Promise<{
+  rootDbId: string;
+  policy: Policy;
+}> {
   const { results }: ListBlockChildrenResponse =
     await client.blocks.children.list({
       block_id: pageID,
@@ -26,29 +30,48 @@ export default async function getRootDB(
   const childDbs: ChildDatabaseBlockObjectResponse[] = results.filter(
     (e) => "type" in e && e.type === "child_database"
   );
-  const childRootDbs = await filter(childDbs, async (e) => {
+  const childValidDbAndPolicies: {
+    childDb: ChildDatabaseBlockObjectResponse;
+    policy: Policy;
+  }[] = [];
+  await forEach(childDbs, async (e) => {
     const response = await client.databases.retrieve({
       database_id: e.id,
     });
-    return validateRootDb(response);
+    const policy = validateRootDb(response);
+    if (policy) {
+      childValidDbAndPolicies.push({
+        childDb: e,
+        policy,
+      });
+    }
   });
-  if (childRootDbs.length === 0) {
+  if (childValidDbAndPolicies.length === 0) {
     // make a root database
-    const rootDbID = await makeRootDb(client, pageID);
-    return rootDbID;
+    return await makeRootDb(client, pageID);
   } else {
     // select a root database
     // or make one
+    const CREATE = "CREATE";
     interface ChoiceDb {
       name: string; // database title
-      value: string; // database id
+      value:
+        | {
+            rootDbId: string;
+            policy: Policy;
+          }
+        | typeof CREATE;
     }
-    const choiceDbs: (ChoiceDb | Separator)[] = childRootDbs.map((e) => ({
-      name: e.child_database.title,
-      value: e.id,
-    }));
+    const choiceDbs: (ChoiceDb | Separator)[] = childValidDbAndPolicies.map(
+      ({ childDb, policy }) => ({
+        name: childDb.child_database.title,
+        value: {
+          rootDbId: childDb.id,
+          policy,
+        },
+      })
+    );
     choiceDbs.push(new Separator());
-    const CREATE = "CREATE";
     choiceDbs.push({ name: "Create a new root database", value: CREATE });
     const answer = await select({
       message: "Select a root database to use.",
@@ -56,8 +79,7 @@ export default async function getRootDB(
     }).catch(inquirerErrorHandle());
 
     if (answer === CREATE) {
-      const rootDbID = await makeRootDb(client, pageID);
-      return rootDbID;
+      return await makeRootDb(client, pageID);
     } else {
       return answer;
     }
@@ -68,15 +90,26 @@ export default async function getRootDB(
  * create root database and return database id
  * @param client
  * @param pageID
- * @returns root database id
+ * @returns root database id and policy
  */
-async function makeRootDb(client: Client, pageID: string): Promise<string> {
+async function makeRootDb(
+  client: Client,
+  pageID: string
+): Promise<{
+  rootDbId: string;
+  policy: Policy;
+}> {
+  const policyName = await select({
+    message: "Select a root database policy.",
+    choices: policiesChoice,
+  });
+  const policy = policiesMap[policyName];
   let res: CreateDatabaseResponse | undefined;
   await input({
     message: "Enter a root database name.",
     required: true,
     validate: async (rawDatabaseName): Promise<string | boolean> => {
-      const newDb = createPlainDbParameter(pageID, rawDatabaseName);
+      const newDb = createPlainDbParameter(pageID, rawDatabaseName, policy);
       try {
         res = await client.databases.create(newDb);
         return true;
@@ -92,5 +125,8 @@ async function makeRootDb(client: Client, pageID: string): Promise<string> {
   if (!res) {
     throw Error("Unexpected error occurred.");
   }
-  return res.id;
+  return {
+    rootDbId: res.id,
+    policy,
+  };
 }

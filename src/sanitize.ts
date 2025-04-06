@@ -4,17 +4,31 @@ import type {
   CreatePageParameters,
   GetDatabaseResponse,
   GetPageResponse,
-  TextRichTextItemResponse,
 } from "@notionhq/client/build/src/api-endpoints.d";
+import { policies, policiesMap, Policy, policyUnion } from "./policies";
 
-export const pageIDRe =
-  /^[A-Za-z0-9]{8}-(?:[A-Za-z0-9]{4}-){3}[A-Za-z0-9]{12}$/;
+export type Prefix = string;
+export type ServiceName = string;
 
 export const PREFIX = "Prefix";
 export const SERVICE_NAME = "Service Name";
-export const APPROVE = "Approve";
-export const WRITE = "Write";
-export const READ = "Read";
+
+type CrDbParamVals = CreateDatabaseParameters["properties"][string];
+type CrDbParamTypes = Exclude<CrDbParamVals["type"], undefined>;
+export type CrDbParam<T extends CrDbParamTypes> = Extract<
+  CrDbParamVals,
+  { type?: T }
+>;
+
+type CrPgParamValsRaw = CreatePageParameters["properties"][string];
+type CrPgParamVals = Extract<CrPgParamValsRaw, { type?: string }>;
+type CrPgParamTypes = Exclude<CrPgParamVals["type"], undefined>;
+export type CrPgParam<T extends CrPgParamTypes> = Extract<
+  CrPgParamVals,
+  { type?: T }
+>;
+
+type RichTextItemRequest = CrPgParam<"rich_text">["rich_text"];
 
 /**
  * Check the validity of a Notion token.
@@ -39,6 +53,9 @@ export async function validateNotionToken(
     }
   }
 }
+
+export const pageIDRe =
+  /^[A-Za-z0-9]{8}-(?:[A-Za-z0-9]{4}-){3}[A-Za-z0-9]{12}$/;
 
 /**
  * Format "rawPageID" into valid page id
@@ -136,22 +153,40 @@ export async function sanitizePageID(
   }
 }
 
+const dbPolicyDescRe = new RegExp(
+  `(?<=policy: )(${policies.join("|")})(?=\\W)`,
+  "m"
+);
+
+/**
+ * get policy from a root database
+ * @param db a root database
+ * @returns if description of the db has policy info, then return policy, otherwise, return undefined
+ */
+export function getPolicy(db: GetDatabaseResponse): Policy | undefined {
+  if ("description" in db) {
+    const res = dbPolicyDescRe.exec(db.description[0].plain_text)?.[0];
+    if (res) {
+      return policiesMap[res as policyUnion];
+    }
+  }
+}
+
 /**
  * validate a root database
  * @param db a root database
- * @returns valid db as a root database
+ * @returns if the db is valid as a root database, then return policy, otherwise, return undefined,
  */
-export function validateRootDb(db: GetDatabaseResponse): boolean {
+export function validateRootDb(db: GetDatabaseResponse): Policy | undefined {
   if (
     db.properties[PREFIX].type === "title" &&
-    db.properties[SERVICE_NAME].type === "rich_text" &&
-    "multi_select" in db.properties[APPROVE] &&
-    db.properties[APPROVE]["multi_select"].options.every(
-      ({ name }) => name === WRITE || name === READ
-    )
-  )
-    return true;
-  return false;
+    db.properties[SERVICE_NAME].type === "rich_text"
+  ) {
+    const policy = getPolicy(db);
+    if (policy?.validProp(db)) {
+      return policy;
+    }
+  }
 }
 
 /**
@@ -163,9 +198,10 @@ export function validateRootDb(db: GetDatabaseResponse): boolean {
  */
 export function createPlainDbParameter(
   pageID: string,
-  dbName: string
+  dbName: string,
+  policy: Policy
 ): CreateDatabaseParameters {
-  return {
+  const seed: CreateDatabaseParameters = {
     parent: {
       page_id: pageID,
     },
@@ -177,22 +213,10 @@ export function createPlainDbParameter(
       [SERVICE_NAME]: {
         rich_text: {},
       },
-      [APPROVE]: {
-        multi_select: {
-          options: [
-            {
-              name: READ,
-              color: "yellow",
-            },
-            {
-              name: WRITE,
-              color: "green",
-            },
-          ],
-        },
-      },
+      ...policy.rootDbProp,
     },
   };
+  return policy.createPlainDbProp(seed);
 }
 
 /**
@@ -204,9 +228,10 @@ export function createPlainDbParameter(
 export function createPlainRecordParameter(
   rootDbId: string,
   prefix: string,
-  serviceName: string
+  serviceName: string,
+  policy: Policy
 ): CreatePageParameters {
-  return {
+  const seed: CreatePageParameters = {
     parent: {
       database_id: rootDbId,
     },
@@ -221,6 +246,7 @@ export function createPlainRecordParameter(
       },
     },
   };
+  return policy.createPlainRecordProp(seed);
 }
 
 /**
@@ -228,26 +254,12 @@ export function createPlainRecordParameter(
  * @param text plane text
  * @returns a new TextRichTextItem object
  */
-export function createPlainRichTextItem(
-  text: string
-): TextRichTextItemResponse[] {
+export function createPlainRichTextItem(text: string): RichTextItemRequest {
   return [
     {
-      type: "text",
       text: {
         content: text,
-        link: null,
       },
-      annotations: {
-        bold: false,
-        italic: false,
-        strikethrough: false,
-        underline: false,
-        code: false,
-        color: "default",
-      },
-      plain_text: text,
-      href: null,
     },
   ];
 }

@@ -1,3 +1,5 @@
+import { Prefix, ServiceName } from "./sanitize";
+
 const IAM_DATASET =
   "https://raw.githubusercontent.com/iann0036/iam-dataset/main/aws/iam_definition.json";
 let DATA: Service[];
@@ -19,7 +21,7 @@ export async function fetchIamDataset() {
  * @returns Map<prefix, service_name>
  */
 export function getServiceNames() {
-  const serviceNames = new Map<string, string>();
+  const serviceNames = new Map<Prefix, ServiceName>();
   DATA.forEach((e) => serviceNames.set(e.prefix, e.service_name));
   return serviceNames;
 }
