@@ -1,18 +1,5 @@
-import {
-  Client,
-  collectPaginatedAPI,
-  isFullDatabase,
-  isFullPage,
-  isFullPageOrDatabase,
-} from "@notionhq/client";
-import {
-  DatabaseObjectResponse,
-  GetDatabaseResponse,
-  PageObjectResponse,
-  PartialDatabaseObjectResponse,
-  PartialPageObjectResponse,
-  QueryDatabaseParameters,
-} from "@notionhq/client/build/src/api-endpoints";
+import { Client, collectPaginatedAPI, isFullDatabase } from "@notionhq/client";
+import { GetDatabaseResponse } from "@notionhq/client/build/src/api-endpoints";
 import {
   createPlainRecordParameter,
   createPlainRichTextItem,
@@ -21,12 +8,12 @@ import {
   SERVICE_NAME,
   ServiceName,
 } from "./sanitize";
-import { getServiceNames } from "./datafetch";
 import { green, red } from "yoctocolors-cjs";
 import { checkbox } from "@inquirer/prompts";
 import { inquirerErrorHandle } from "./errorHundle";
 import { forEach } from "p-iteration";
 import { Policy } from "./policies";
+import { getService, getServiceNameMap } from "./datafetch";
 
 /**
  * get info about idMap and approveMap, and update root database.
@@ -40,7 +27,6 @@ export default async function updateRootDB(
   client: Client,
   rootDbID: string,
   rootDb: GetDatabaseResponse,
-  serviceNameInIamMap: Map<Prefix, ServiceName>,
   policy: Policy
 ): Promise<Map<Prefix, string>> {
   const idMap = new Map<Prefix, string>(); // prefix: id
@@ -94,7 +80,7 @@ export default async function updateRootDB(
   const minusPrefixes: Choice[] = [];
   const plusPrefixes: Choice[] = [];
   {
-    const latestServiceNameMap = getServiceNames();
+    const latestServiceNameMap = getServiceNameMap();
     serviceNameInNotionMap.forEach((service_name, prefix) => {
       const latest_service = latestServiceNameMap.get(prefix);
       if (latest_service) {
@@ -127,7 +113,7 @@ export default async function updateRootDB(
     }).catch(inquirerErrorHandle());
     await forEach(fixServiceNamesPrefixes, async (prefix) => {
       const pageId = idMap.get(prefix);
-      const serviceName = serviceNameInIamMap.get(prefix);
+      const serviceName = getService(prefix).service_name;
       if (pageId && serviceName) {
         await client.pages.update({
           page_id: pageId,
@@ -165,7 +151,7 @@ export default async function updateRootDB(
       choices: plusPrefixes,
     });
     await forEach(addPrefixes, async (prefix) => {
-      const serviceName = serviceNameInIamMap.get(prefix);
+      const serviceName = getService(prefix).service_name;
       if (serviceName) {
         const createdPage = await client.pages.create(
           createPlainRecordParameter(rootDbID, prefix, serviceName, policy)

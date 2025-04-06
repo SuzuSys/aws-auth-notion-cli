@@ -1,13 +1,11 @@
 #!/usr/bin/env node
 import dotenv from "dotenv";
-import { fetchIamDataset, getServiceNames } from "./datafetch";
+import { fetchIamDataset } from "./datafetch";
 import getNotionClient from "./01_getNotionClient";
 import getPageID from "./02_getPageID";
 import getRootDB from "./03_getRootDB";
 import updateRootDB from "./04_updateRootDB";
 import { GetDatabaseResponse } from "@notionhq/client/build/src/api-endpoints";
-import { getPolicy } from "./sanitize";
-import { Policy } from "./policies";
 
 dotenv.config();
 
@@ -25,17 +23,9 @@ dotenv.config();
   });
   // fetch data from iamdataset and save global variables
   await fetchIamDataset();
-  // Map<prefix, service_name>
-  const serviceNameInIamMap = getServiceNames();
   // get info about idMap and approveMap, and update root database
-  const idMap = await updateRootDB(
-    client,
-    rootDbId,
-    rootDb,
-    serviceNameInIamMap,
-    policy
-  );
-  //
+  const idMap = await updateRootDB(client, rootDbId, rootDb, policy);
+  // update other
 })()
   .then(() => process.exit(0))
   .catch((err) => {

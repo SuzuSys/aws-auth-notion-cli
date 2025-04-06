@@ -10,6 +10,7 @@ import {
 } from "@notionhq/client/build/src/api-endpoints";
 import { Policy } from "..";
 import { createPlainRichTextItem, Prefix } from "../../sanitize";
+import { Client } from "@notionhq/client";
 
 const APPROVE = "Approve";
 const WRITE = "Write";
@@ -85,6 +86,11 @@ export const SCP0: PolicySCP0 = {
   deleteRecordCallback(prefix: Prefix) {
     this.data.approveMap.delete(prefix);
   },
+  updateOther: function (
+    client: Client,
+    rootDbID: string,
+    rootDb: GetDatabaseResponse
+  ): Promise<void> {},
   data: {
     approveMap: new Map(),
   },

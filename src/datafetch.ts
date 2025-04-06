@@ -3,6 +3,8 @@ import { Prefix, ServiceName } from "./sanitize";
 const IAM_DATASET =
   "https://raw.githubusercontent.com/iann0036/iam-dataset/main/aws/iam_definition.json";
 let DATA: Service[];
+type Index = number;
+const prefix2Index: Map<Prefix, Index> = new Map();
 
 /**
  * fetch DATA from Iam Dataset
@@ -13,17 +15,29 @@ export async function fetchIamDataset() {
   } else {
     const response = await fetch(IAM_DATASET);
     DATA = await response.json();
+    DATA.forEach((service, i) => prefix2Index.set(service.prefix, i));
   }
 }
 
 /**
- * get service names
- * @returns Map<prefix, service_name>
+ * get service
+ * @returns service
  */
-export function getServiceNames() {
-  const serviceNames = new Map<Prefix, ServiceName>();
-  DATA.forEach((e) => serviceNames.set(e.prefix, e.service_name));
-  return serviceNames;
+export function getService(prefix: Prefix): Service {
+  const idx = prefix2Index.get(prefix);
+  if (idx) return DATA[idx];
+  else {
+    // impossible
+    throw Error("unexpected error");
+  }
+}
+
+export function getServiceNameMap(): Map<Prefix, ServiceName> {
+  const serviceNameMap = new Map();
+  for (const [prefix, _] of prefix2Index) {
+    serviceNameMap.set(prefix, getService(prefix).service_name);
+  }
+  return serviceNameMap;
 }
 
 interface Service {
