@@ -3,4 +3,4 @@ export const testEnvironment = "node";
 export const transform = {
   "^.+.tsx?$": ["ts-jest", {}],
 };
-export const roots = ["<rootDir>/test", "<rootDir>/src"];
+export const roots = ["<rootDir>/src"];
